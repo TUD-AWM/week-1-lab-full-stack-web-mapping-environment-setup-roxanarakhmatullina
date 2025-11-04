@@ -224,3 +224,7 @@ Uses a custom Docker network with isolated containers
 Nginx configured as a reverse proxy to handle static files and API routing
 
 Demonstrates production-oriented structure for local deployment
+
+Future Improvements
+
+There are several ways the ActiveFinder project could be extended in the future. The map could include custom icons and colors for different sports, and popups could show extra details such as images or facility links. A routing feature could be added using the OpenRouteService API to display directions between the user’s location and a selected facility. Address search functionality using the Nominatim API would also improve navigation. On the backend, new features like user-submitted facilities, reviews, or more complex spatial queries (for example, facilities near rivers or within certain areas) could further enhance the application’s usefulness.
