@@ -149,12 +149,10 @@ Application Overview
 The system implements a complete MVC structure with a spatially enabled database and a web-based map interface.
 Users can browse available facilities and interact with spatial queries through an integrated REST API.
 All components are containerized for local deployment using Docker, providing a stable and reproducible environment.
+<img width="935" height="465" alt="image" src="https://github.com/user-attachments/assets/ba0e7a4d-6dab-438e-b3df-1329fb9b35c6" />     
+<img width="940" height="467" alt="image" src="https://github.com/user-attachments/assets/7f7bf132-f925-4ace-9320-38ddccdca902" />
 
-Documentation
 
-Architecture Diagram: illustrates the flow between database, API, and frontend (to be included as docs/architecture.png)
-
-Database Schema: available through Django migrations (/migrations/)
 
 Test Credentials:
 Username: admin
