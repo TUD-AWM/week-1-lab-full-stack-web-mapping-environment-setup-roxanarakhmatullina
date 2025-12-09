@@ -1,0 +1,10 @@
+{
+  "name": "ActiveFinder",
+  "short_name": "ActiveFinder",
+  "start_url": "/map/",
+  "display": "standalone",
+  "background_color": "#f4f7fa",
+  "theme_color": "#1e88e5",
+  "description": "Location-based sports facilities explorer for athletes in Ireland.",
+  "icons": []
+}

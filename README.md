@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ActiveFinder: Sports Facilities Location-Based Web Application
 
 ActiveFinder is a location-based web app built with Django, PostGIS, and Leaflet.
@@ -228,3 +229,6 @@ Demonstrates production-oriented structure for local deployment
 Future Improvements
 
 There are several ways the ActiveFinder project could be extended in the future. The map could include custom icons and colors for different sports, and popups could show extra details such as images or facility links. A routing feature could be added using the OpenRouteService API to display directions between the user’s location and a selected facility. Address search functionality using the Nominatim API would also improve navigation. On the backend, new features like user-submitted facilities, reviews, or more complex spatial queries (for example, facilities near rivers or within certain areas) could further enhance the application’s usefulness.
+=======
+[![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-2e0aaae1b6195c2367325f4f02e2d04e9abb55f0b24a779b69b11b9e10269abc.svg)](https://classroom.github.com/online_ide?assignment_repo_id=20664497&assignment_repo_type=AssignmentRepo)
+>>>>>>> 8ea4c86 (ActiveFinder CA2 inital submission)

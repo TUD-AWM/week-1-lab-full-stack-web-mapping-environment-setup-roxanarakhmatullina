@@ -1,0 +1,961 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ActiveFinder | Sports Facilities Explorer</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e88e5">
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+
+    <!-- Leaflet core -->
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- MarkerCluster -->
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+    <!-- Heatmap plugin -->
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <!-- Bootstrap (just for buttons + layout help) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <style>
+        :root {
+            --af-blue: #1e88e5;
+            --af-green: #43a047;
+            --af-bg: #f4f7fa;
+            --af-border: #e0e6ee;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--af-bg);
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--af-blue), var(--af-green));
+            color: #fff;
+            padding: 0.9rem 1.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+
+        header .title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        header .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 2fr 1.1fr;
+            gap: 0;
+            height: calc(100vh - 64px);
+        }
+
+        @media (max-width: 900px) {
+            .layout {
+                grid-template-columns: 1fr;
+                grid-template-rows: 55vh auto;
+            }
+        }
+
+        .map-panel {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--af-border);
+            background: #fff;
+        }
+
+        .controls {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--af-border);
+            background: #fff;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 0.75rem;
+            align-items: center;
+            z-index: 500;
+        }
+
+        .controls label {
+            font-size: 0.8rem;
+            color: #4b5563;
+            margin-right: 0.3rem;
+        }
+
+        .controls select,
+        .controls button,
+        .controls input[type="text"] {
+            font-size: 0.85rem;
+        }
+
+        .controls input[type="text"] {
+            padding: 0.25rem 0.5rem;
+            border-radius: 999px;
+            border: 1px solid #d1d9e6;
+            min-width: 180px;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        .side-panel {
+            padding: 0.9rem 1rem;
+            overflow-y: auto;
+            background: #f7f9fc;
+        }
+
+        .side-section-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #6b7a90;
+            margin: 0.6rem 0 0.25rem;
+        }
+
+        .card-box {
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid var(--af-border);
+            padding: 0.8rem 0.9rem;
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
+            margin-bottom: 0.9rem;
+        }
+
+        #facilityImage {
+            width: 100%;
+            border-radius: 10px;
+            object-fit: cover;
+            max-height: 200px;
+        }
+
+        #facilityName {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        #facilityMeta {
+            font-size: 0.85rem;
+            color: #4b5563;
+            margin-top: 0.25rem;
+        }
+
+        #facilitySportPill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.15rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            background: rgba(30, 136, 229, 0.1);
+            color: #1e88e5;
+            margin-top: 0.3rem;
+        }
+
+        .search-results {
+            position: absolute;
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #d1d9e6;
+            max-height: 180px;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(15,23,42,0.12);
+            margin-top: 0.25rem;
+            z-index: 1000;
+        }
+
+        .search-results div {
+            padding: 0.3rem 0.7rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .search-results div:hover {
+            background: #eef2ff;
+        }
+
+        #densitySummary {
+            font-size: 0.8rem;
+            color: #4b5563;
+        }
+
+        #densitySummary ul {
+            padding-left: 1.1rem;
+            margin-bottom: 0;
+        }
+
+        #densitySummary li {
+            margin-bottom: 0.15rem;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <div class="title">ActiveFinder</div>
+        <div class="subtitle">Interactive sports map for athletes in Ireland</div>
+    </div>
+    <div style="font-size:0.8rem; opacity:0.9;">
+        Data from OpenStreetMap 
+    </div>
+</header>
+
+<div class="layout">
+    <!-- Left: Map -->
+    <section class="map-panel">
+        <div class="controls position-relative">
+            <label for="sportFilter">Sport</label>
+            <select id="sportFilter" class="form-select form-select-sm" style="width:auto;">
+                <option value="">All</option>
+                <option value="gym">Gyms</option>
+                <option value="pool">Swimming pools</option>
+                <option value="pitch">Pitches / fields</option>
+                <option value="court">Courts</option>
+                <option value="stadium">Stadiums</option>
+                <option value="rink">Ice rinks</option>
+                <option value="other">Other</option>
+            </select>
+
+            <label for="radiusRange">Radius</label>
+            <input type="range" id="radiusRange" min="1" max="40" value="10" step="1" style="width:120px;">
+            <span id="radiusLabel" style="font-size:0.8rem;">10 km</span>
+
+            <label for="routeMode">Route</label>
+            <select id="routeMode" class="form-select form-select-sm" style="width:auto;">
+                <option value="driving">Driving</option>
+                <option value="foot">Walking</option>
+            </select>
+
+            <button id="locateBtn" class="btn btn-sm btn-primary">
+                Use my location
+            </button>
+
+            <button id="resetViewBtn" class="btn btn-sm btn-outline-secondary">
+                Reset
+            </button>
+
+            <button id="toggleHeatmapBtn" class="btn btn-sm btn-outline-danger">
+                Heatmap
+            </button>
+
+            <button id="toggleZonesBtn" class="btn btn-sm btn-outline-success">
+                Zones
+            </button>
+
+            <!-- Search -->
+            <input id="searchInput" type="text"
+                   placeholder="Search facilities..."
+                   autocomplete="off">
+            <div id="searchResults" class="search-results" style="display:none;"></div>
+        </div>
+
+        <div id="map"></div>
+    </section>
+
+    <!-- Right: Facility details + density + events -->
+    <aside class="side-panel">
+
+        <!-- Selected facility -->
+        <div class="side-section-title">Selected facility</div>
+        <div class="card-box">
+            <img id="facilityImage"
+                 src="https://images.pexels.com/photos/1954524/pexels-photo-1954524.jpeg?auto=compress&cs=tinysrgb&w=800"
+                 alt="Facility image">
+            <div id="facilityName">Click on a marker</div>
+            <div id="facilitySportPill" style="display:none;">
+                <span id="facilitySportIcon"></span>
+                <span id="facilitySportLabel"></span>
+            </div>
+            <div id="facilityMeta">
+                Use the map on the left to explore gyms, pools, courts and more.
+                Then we’ll show you details, routes and upcoming events here.
+            </div>
+            <button id="routeBtn" class="btn btn-sm btn-primary mt-2" disabled>
+                Show route from my location
+            </button>
+        </div>
+
+        <!-- Density summary -->
+        <div class="side-section-title">Facility density (sample stats)</div>
+        <div id="densitySummary" class="card-box">
+            Loading stats...
+        </div>
+
+        <!-- Events -->
+        <div class="side-section-title">Upcoming events (demo)</div>
+        <div id="eventsList" class="card-box">
+            Select a facility to see example events for that location.
+        </div>
+
+        <div class="side-section-title">All demo events</div>
+        <div id="globalEventsList" class="card-box"></div>
+    </aside>
+</div>
+
+<script>
+    // ------------------------------
+    // 1. Map setup
+    // ------------------------------
+    const map = L.map('map').setView([53.35, -6.26], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Cluster group with colour-coded bubbles
+    const clusterGroup = L.markerClusterGroup({
+        spiderfyOnEveryZoom: false,
+        showCoverageOnHover: false,
+        maxClusterRadius: 55,
+        iconCreateFunction: function (cluster) {
+            const count = cluster.getChildCount();
+            let size = 'small';
+            if (count >= 20) size = 'large';
+            else if (count >= 10) size = 'medium';
+
+            return L.divIcon({
+                html: '<div><span>' + count + '</span></div>',
+                className: 'marker-cluster marker-cluster-' + size,
+                iconSize: L.point(40, 40)
+            });
+        }
+    });
+    map.addLayer(clusterGroup);
+
+    let heatLayer = null;
+    let zonesLayer = null;
+    let routeLayer = null;
+    let userLocation = null;
+    let currentFacility = null;
+    let facilitiesData = [];  // all features for search/density/heatmap
+
+    // ------------------------------
+    // 2. Icon logic by sport_type
+    // ------------------------------
+    const sportConfig = {
+        gym:   { label: 'Gym / fitness', icon: '🏋️', color: '#e11d48' },
+        pool:  { label: 'Swimming pool', icon: '🏊', color: '#0ea5e9' },
+        pitch: { label: 'Pitch / field', icon: '🏟️', color: '#22c55e' },
+        court: { label: 'Court',          icon: '🎾', color: '#a855f7' },
+        stadium: { label: 'Stadium',      icon: '🏟️', color: '#f97316' },
+        rink:  { label: 'Ice rink',       icon: '⛸️', color: '#38bdf8' },
+        other: { label: 'Other',          icon: '📍', color: '#4b5563' }
+    };
+
+    function createSportIcon(sportType) {
+        const config = sportConfig[sportType] || sportConfig.other;
+        return L.divIcon({
+            html: `<div style="
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    width:30px;
+                    height:30px;
+                    border-radius:999px;
+                    background:${config.color};
+                    color:#fff;
+                    font-size:18px;
+                    box-shadow:0 2px 6px rgba(15,23,42,0.35);
+                    ">
+                        ${config.icon}
+                   </div>`,
+            className: '',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
+            popupAnchor: [0, -16]
+        });
+    }
+
+    // ------------------------------
+    // 3. Demo images & events
+    // ------------------------------
+    const facilityImages = {
+        "National Aquatic Centre": "https://images.pexels.com/photos/260447/pexels-photo-260447.jpeg?auto=compress&cs=tinysrgb&w=800",
+        "UCD Sport & Fitness": "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg?auto=compress&cs=tinysrgb&w=800",
+        "Sport Ireland Campus": "https://images.pexels.com/photos/841130/pexels-photo-841130.jpeg?auto=compress&cs=tinysrgb&w=800",
+        "Energia Park": "https://images.pexels.com/photos/114296/pexels-photo-114296.jpeg?auto=compress&cs=tinysrgb&w=800"
+    };
+
+    const facilityEvents = {
+        "National Aquatic Centre": [
+            {
+                title: "Leinster Swim Gala",
+                date: "2025-12-14",
+                time: "10:00",
+                level: "Competition",
+                sport: "Swimming",
+                note: "Regional qualifying meet"
+            }
+        ],
+        "UCD Sport & Fitness": [
+            {
+                title: "Strength & Conditioning for GAA",
+                date: "2025-12-15",
+                time: "18:00",
+                level: "Open class",
+                sport: "Gym"
+            }
+        ],
+        "Energia Park": [
+            {
+                title: "Club Rugby Fixture",
+                date: "2025-12-20",
+                time: "14:00",
+                level: "Match",
+                sport: "Rugby"
+            }
+        ]
+    };
+
+    const allEvents = [];
+    Object.entries(facilityEvents).forEach(([facilityName, events]) => {
+        events.forEach(ev => allEvents.push({ ...ev, facilityName }));
+    });
+
+    function renderGlobalEvents() {
+        const container = document.getElementById("globalEventsList");
+        if (!allEvents.length) {
+            container.textContent = "No demo events configured.";
+            return;
+        }
+        const sorted = allEvents.slice().sort((a, b) => a.date.localeCompare(b.date));
+        let html = "";
+        sorted.forEach(ev => {
+            html += `
+                <div style="margin-bottom:0.4rem;font-size:0.85rem;">
+                    <strong>${ev.title}</strong>
+                    <span style="font-size:0.7rem;border-radius:999px;background:#e0f2fe;padding:0.05rem 0.4rem;margin-left:0.2rem;">
+                        ${ev.level}
+                    </span><br>
+                    ${ev.date} · ${ev.time || "TBA"} · ${ev.sport}<br>
+                    <span style="opacity:0.8;">Where: ${ev.facilityName}</span>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+    renderGlobalEvents();
+
+    function renderEventsForFacility(name) {
+        const events = facilityEvents[name] || [];
+        const container = document.getElementById("eventsList");
+        if (!events.length) {
+            container.innerHTML = `
+                <div style="font-size:0.85rem; color:#6b7280;">
+                    No upcoming demo events for this facility.
+                </div>
+            `;
+            return;
+        }
+        let html = "";
+        events.forEach(ev => {
+            html += `
+                <div style="margin-bottom:0.4rem;font-size:0.85rem;">
+                    <strong>${ev.title}</strong>
+                    <span style="font-size:0.7rem;border-radius:999px;background:#e0f2fe;padding:0.05rem 0.4rem;margin-left:0.2rem;">
+                        ${ev.level}
+                    </span><br>
+                    ${ev.date} · ${ev.time || "TBA"} · ${ev.sport}
+                    ${ev.note ? `<br><span style="opacity:0.8;">${ev.note}</span>` : ""}
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    // ------------------------------
+    // 4. Facility panel + density
+    // ------------------------------
+    const facilityNameEl = document.getElementById("facilityName");
+    const facilityImageEl = document.getElementById("facilityImage");
+    const facilitySportPillEl = document.getElementById("facilitySportPill");
+    const facilitySportIconEl = document.getElementById("facilitySportIcon");
+    const facilitySportLabelEl = document.getElementById("facilitySportLabel");
+    const facilityMetaEl = document.getElementById("facilityMeta");
+    const routeBtnEl = document.getElementById("routeBtn");
+
+    function resetFacilityPanel() {
+        currentFacility = null;
+        facilityNameEl.textContent = "Click on a marker";
+        facilityImageEl.src = "https://images.pexels.com/photos/1954524/pexels-photo-1954524.jpeg?auto=compress&cs=tinysrgb&w=800";
+        facilitySportPillEl.style.display = "none";
+        facilityMetaEl.innerHTML = `
+            Use the map on the left to explore gyms, pools, courts and more.
+            Then we’ll show you details, routes and upcoming events here.
+        `;
+        routeBtnEl.disabled = true;
+        document.getElementById("eventsList").innerHTML =
+            "Select a facility to see example events for that location.";
+    }
+
+    function updateFacilityPanel(feature) {
+        currentFacility = feature;
+        const props = feature.properties || {};
+        const sportType = props.sport_type || "other";
+        const config = sportConfig[sportType] || sportConfig.other;
+
+        facilityNameEl.textContent = props.name || "Unnamed facility";
+
+        // Sport pill
+        facilitySportPillEl.style.display = "inline-flex";
+        facilitySportIconEl.textContent = config.icon;
+        facilitySportLabelEl.textContent = config.label;
+
+        // Image
+        const byName = facilityImages[props.name];
+        const sportBackups = {
+            gym: "https://images.pexels.com/photos/1552249/pexels-photo-1552249.jpeg?auto=compress&cs=tinysrgb&w=800",
+            pool: "https://images.pexels.com/photos/2611850/pexels-photo-2611850.jpeg?auto=compress&cs=tinysrgb&w=800",
+            pitch: "https://images.pexels.com/photos/399187/pexels-photo-399187.jpeg?auto=compress&cs=tinysrgb&w=800",
+            court: "https://images.pexels.com/photos/209977/pexels-photo-209977.jpeg?auto=compress&cs=tinysrgb&w=800",
+            rink: "https://images.pexels.com/photos/730807/pexels-photo-730807.jpeg?auto=compress&cs=tinysrgb&w=800",
+            stadium: "https://images.pexels.com/photos/114296/pexels-photo-114296.jpeg?auto=compress&cs=tinysrgb&w=800"
+        };
+        let imgUrl = byName || sportBackups[sportType] ||
+            "https://images.pexels.com/photos/1954524/pexels-photo-1954524.jpeg?auto=compress&cs=tinysrgb&w=800";
+        facilityImageEl.src = imgUrl;
+
+        // Meta
+        let lat = "";
+        let lon = "";
+        if (feature.geometry && feature.geometry.coordinates) {
+            lon = feature.geometry.coordinates[0].toFixed(5);
+            lat = feature.geometry.coordinates[1].toFixed(5);
+        }
+        const desc = props.description || "No description available yet.";
+        facilityMetaEl.innerHTML = `
+            <div>
+                ${desc}<br>
+                <strong>Sport type:</strong> ${config.label}<br>
+                ${lat && lon ? `<strong>Approx. location:</strong> ${lat}, ${lon}<br>` : ""}
+                <strong>Source:</strong> OpenStreetMap (demo data)
+            </div>
+        `;
+
+        // Route button
+        routeBtnEl.disabled = !userLocation;
+
+        // Events for this facility
+        renderEventsForFacility(props.name);
+    }
+
+    function renderDensitySummary() {
+        const summaryEl = document.getElementById("densitySummary");
+        if (!facilitiesData.length) {
+            summaryEl.textContent = "No facilities loaded yet.";
+            return;
+        }
+
+        const counts = {};
+        facilitiesData.forEach(f => {
+            const st = f.properties?.sport_type || "other";
+            counts[st] = (counts[st] || 0) + 1;
+        });
+
+        let total = facilitiesData.length;
+        let html = `<div style="margin-bottom:0.35rem;">Total facilities: <strong>${total}</strong></div><ul>`;
+        Object.entries(counts).forEach(([st, c]) => {
+            const cfg = sportConfig[st] || sportConfig.other;
+            const pct = ((c / total) * 100).toFixed(1);
+            html += `<li>${cfg.icon} ${cfg.label}: <strong>${c}</strong> (~${pct}%)</li>`;
+        });
+        html += "</ul><div style='font-size:0.75rem;opacity:0.8;margin-top:0.3rem;'>This is a simple density summary based on the facilities returned from the API.</div>";
+        summaryEl.innerHTML = html;
+    }
+
+    // ------------------------------
+    // 5. Load facilities from your API
+    // ------------------------------
+    async function loadFacilities(query = "") {
+        try {
+            const url = `/api/facilities/${query}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            // GeoJSON FeatureCollection
+            facilitiesData = data.features || [];
+
+            clusterGroup.clearLayers();
+            if (heatLayer) {
+                map.removeLayer(heatLayer);
+                heatLayer = null;
+            }
+            if (zonesLayer) {
+                map.removeLayer(zonesLayer);
+                zonesLayer = null;
+            }
+
+            const geoLayer = L.geoJSON(data, {
+                pointToLayer: (feature, latlng) => {
+                    const sportType = feature.properties && feature.properties.sport_type;
+                    const icon = createSportIcon(sportType);
+                    const marker = L.marker(latlng, { icon });
+
+                    const name = feature.properties?.name || "Unnamed facility";
+                    marker.bindPopup(`<strong>${name}</strong>`);
+
+                    marker.on("click", () => {
+                        updateFacilityPanel(feature);
+                    });
+
+                    return marker;
+                }
+            });
+
+            clusterGroup.addLayer(geoLayer);
+
+            // Fit bounds
+            if (geoLayer.getLayers().length) {
+                const bounds = geoLayer.getBounds();
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds, { padding: [40, 40] });
+                }
+            }
+
+            // Build heatmap layer points (but don't show yet until toggled)
+            buildHeatmapLayer();
+
+            // Build zones layer (but don't show yet until toggled)
+            buildZonesLayer();
+
+            // Update density summary
+            renderDensitySummary();
+
+            // Reset facility panel on new filter
+            resetFacilityPanel();
+
+        } catch (err) {
+            console.error("Error loading facilities:", err);
+        }
+    }
+
+    function buildHeatmapLayer() {
+        if (!facilitiesData.length) return;
+        const points = [];
+        facilitiesData.forEach(f => {
+            const coords = f.geometry && f.geometry.coordinates;
+            if (!coords) return;
+            const lon = coords[0];
+            const lat = coords[1];
+            points.push([lat, lon, 0.7]);  // lat, lon, intensity
+        });
+        heatLayer = L.heatLayer(points, {
+            radius: 35,
+            blur: 20,
+            maxZoom: 17
+        });
+    }
+
+    function buildZonesLayer() {
+        if (!facilitiesData.length) return;
+        const geo = L.geoJSON({ type: "FeatureCollection", features: facilitiesData });
+        const bounds = geo.getBounds();
+        if (!bounds.isValid()) return;
+
+        const north = bounds.getNorth();
+        const south = bounds.getSouth();
+        const west = bounds.getWest();
+        const east = bounds.getEast();
+
+        const midLat1 = south + (north - south) / 3;
+        const midLat2 = south + 2 * (north - south) / 3;
+
+        const zone1 = L.rectangle([[midLat2, west], [north, east]], {
+            color: "#22c55e",
+            weight: 1,
+            fillOpacity: 0.05
+        }).bindTooltip("Zone 1 (north) – higher-level overview");
+
+        const zone2 = L.rectangle([[midLat1, west], [midLat2, east]], {
+            color: "#eab308",
+            weight: 1,
+            fillOpacity: 0.05
+        }).bindTooltip("Zone 2 (central) – mixed density");
+
+        const zone3 = L.rectangle([[south, west], [midLat1, east]], {
+            color: "#ef4444",
+            weight: 1,
+            fillOpacity: 0.05
+        }).bindTooltip("Zone 3 (south) – lower density in this demo");
+
+        zonesLayer = L.layerGroup([zone1, zone2, zone3]);
+    }
+
+    // ------------------------------
+    // 6. Routing with OSRM (Driving/Walking)
+    // ------------------------------
+    async function showRouteToCurrentFacility() {
+        if (!currentFacility || !userLocation) {
+            alert("Select a facility and allow location access first.");
+            return;
+        }
+
+        if (!currentFacility.geometry || !currentFacility.geometry.coordinates) {
+            alert("This facility has no valid geometry.");
+            return;
+        }
+
+        const [lon, lat] = currentFacility.geometry.coordinates;
+        const from = userLocation;      // Leaflet LatLng { lat, lng }
+        const to = { lat, lon };
+
+        const mode = document.getElementById("routeMode").value || "driving";
+        const profile = mode === "foot" ? "foot" : "driving";
+
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+            routeLayer = null;
+        }
+
+        try {
+            const url =
+                `https://router.project-osrm.org/route/v1/${profile}/` +
+                `${from.lng},${from.lat};${to.lon},${to.lat}` +
+                `?overview=full&geometries=geojson`;
+
+            const res = await fetch(url);
+            const json = await res.json();
+
+            if (json.code !== "Ok" || !json.routes || !json.routes.length) {
+                alert("Could not get route from OSRM routing service.");
+                console.error(json);
+                return;
+            }
+
+            const coords = json.routes[0].geometry.coordinates.map(
+                ([lng, lat]) => [lat, lng]
+            );
+
+            routeLayer = L.polyline(coords, {
+                weight: 5,
+                opacity: 0.85
+            }).addTo(map);
+
+            map.fitBounds(routeLayer.getBounds(), { padding: [40, 40] });
+        } catch (err) {
+            alert("Error while fetching route.");
+            console.error(err);
+        }
+    }
+
+    // ------------------------------
+    // 7. Controls behaviour
+    // ------------------------------
+    const radiusRangeEl = document.getElementById("radiusRange");
+    const radiusLabelEl = document.getElementById("radiusLabel");
+
+    document.getElementById("sportFilter").addEventListener("change", (e) => {
+        const sport = e.target.value;
+        const params = sport ? `?sport_type=${sport}` : "";
+        loadFacilities(params);
+    });
+
+    radiusRangeEl.addEventListener("input", (e) => {
+        const km = e.target.value;
+        radiusLabelEl.textContent = `${km} km`;
+
+        if (userLocation) {
+            const { lat, lng } = userLocation;
+            const query = `within_radius/?lat=${lat}&lon=${lng}&km=${km}`;
+            loadFacilities(query);
+        }
+    });
+
+    document.getElementById("locateBtn").addEventListener("click", () => {
+        map.locate({ setView: true, maxZoom: 14 });
+    });
+
+    document.getElementById("resetViewBtn").addEventListener("click", () => {
+        userLocation = null;
+        radiusRangeEl.value = 10;
+        radiusLabelEl.textContent = "10 km";
+
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+            routeLayer = null;
+        }
+
+        loadFacilities();
+        resetFacilityPanel();
+    });
+
+    map.on("locationfound", (e) => {
+        userLocation = e.latlng;
+
+        const km = parseFloat(radiusRangeEl.value);
+        const circle = L.circle(e.latlng, {
+            radius: km * 1000,
+            color: "#22c55e",
+            weight: 2,
+            fillOpacity: 0.1
+        });
+        circle.addTo(map);
+
+        const query = `within_radius/?lat=${e.latitude}&lon=${e.longitude}&km=${km}`;
+        loadFacilities(query);
+
+        if (currentFacility) {
+            routeBtnEl.disabled = false;
+        }
+    });
+
+    map.on("locationerror", (e) => {
+        alert("Could not get your location – is location access blocked?");
+        console.error(e);
+    });
+
+    // Heatmap toggle
+    let heatmapVisible = false;
+    document.getElementById("toggleHeatmapBtn").addEventListener("click", () => {
+        if (!heatLayer) {
+            buildHeatmapLayer();
+        }
+        heatmapVisible = !heatmapVisible;
+        if (heatmapVisible) {
+            heatLayer && heatLayer.addTo(map);
+        } else {
+            heatLayer && map.removeLayer(heatLayer);
+        }
+    });
+
+    // Zones toggle
+    let zonesVisible = false;
+    document.getElementById("toggleZonesBtn").addEventListener("click", () => {
+        if (!zonesLayer) {
+            buildZonesLayer();
+        }
+        zonesVisible = !zonesVisible;
+        if (zonesVisible) {
+            zonesLayer && zonesLayer.addTo(map);
+        } else {
+            zonesLayer && map.removeLayer(zonesLayer);
+        }
+    });
+
+    // Routing button
+    routeBtnEl.addEventListener("click", showRouteToCurrentFacility);
+
+    // ------------------------------
+    // 8. Search with autocomplete
+    // ------------------------------
+    const searchInputEl = document.getElementById("searchInput");
+    const searchResultsEl = document.getElementById("searchResults");
+
+    function updateSearchResults() {
+        const q = searchInputEl.value.trim().toLowerCase();
+        if (!q || q.length < 2 || !facilitiesData.length) {
+            searchResultsEl.style.display = "none";
+            searchResultsEl.innerHTML = "";
+            return;
+        }
+
+        const matches = facilitiesData.filter(f => {
+            const name = (f.properties?.name || "").toLowerCase();
+            return name.includes(q);
+        }).slice(0, 8);
+
+        if (!matches.length) {
+            searchResultsEl.style.display = "none";
+            searchResultsEl.innerHTML = "";
+            return;
+        }
+
+        let html = "";
+        matches.forEach((f, idx) => {
+            const name = f.properties?.name || "Unnamed facility";
+            const sportType = f.properties?.sport_type || "other";
+            const cfg = sportConfig[sportType] || sportConfig.other;
+            html += `<div data-index="${idx}">
+                        ${cfg.icon} ${name}
+                     </div>`;
+        });
+
+        searchResultsEl.innerHTML = html;
+        searchResultsEl.style.display = "block";
+
+        // Attach click
+        Array.from(searchResultsEl.children).forEach((child, idx) => {
+            child.addEventListener("click", () => {
+                const feature = matches[idx];
+                goToFacility(feature);
+                searchResultsEl.style.display = "none";
+            });
+        });
+    }
+
+    function goToFacility(feature) {
+        if (!feature.geometry || !feature.geometry.coordinates) return;
+        const [lon, lat] = feature.geometry.coordinates;
+        const latlng = [lat, lon];
+
+        map.setView(latlng, 15);
+
+        // Temporary highlight marker
+        const tempMarker = L.circleMarker(latlng, {
+            radius: 9,
+            color: "#1e88e5",
+            fillColor: "#1e88e5",
+            fillOpacity: 0.9
+        }).addTo(map);
+
+        setTimeout(() => {
+            map.removeLayer(tempMarker);
+        }, 2500);
+
+        updateFacilityPanel(feature);
+    }
+
+    searchInputEl.addEventListener("input", updateSearchResults);
+
+    document.addEventListener("click", (e) => {
+        if (!searchResultsEl.contains(e.target) && e.target !== searchInputEl) {
+            searchResultsEl.style.display = "none";
+        }
+    });
+
+    // ------------------------------
+    // 9. Initial load
+    // ------------------------------
+    loadFacilities();
+    resetFacilityPanel();
+
+    // ------------------------------
+    // 10. PWA service worker registration (optional)
+    // ------------------------------
+    if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+            navigator.serviceWorker
+                .register("{% static 'service-worker.js' %}")
+                .catch(err => console.log("Service worker registration failed", err));
+        });
+    }
+</script>
+
+</body>
+</html>
